@@ -11,7 +11,7 @@ setuptools.setup(
     description="Plate map uploading, processing & visualisaion",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="",
+    url="https://github.com/lawrencecollins/platemapping",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
