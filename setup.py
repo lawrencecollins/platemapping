@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="platemapping", 
-    version="0.0.1",
+    version="0.0.2",
     author="Stuart Warriner, Lawrence Collins",
     author_email="s.l.warriner@leeds.ac.uk, lawrencejordancollins@gmail.com",
     description="Plate map uploading, processing & visualisaion",
