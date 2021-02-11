@@ -13,66 +13,49 @@ class HeaderError(PlateMapError):
     pass
 
 # headers
-header_names_short = ['Row', 'Start', 'End', 'Type', 'Contents', 'Compound', 'Protein', 'Concentration', 'Concentration Units']
-header_names_long = ['Well ID', 'Type', 'Contents', 'Compound', 'Protein', 'Concentration', 'Concentration Units']
+header_names = {'Well ID': {'dtype':str, 'long':True, 'short_row': False, 'short_col':False},
+                'Type': {'dtype':str, 'long':True, 'short_row': True, 'short_col':True},
+                'Contents': {'dtype':str, 'long':True, 'short_row': True, 'short_col':True},
+                'Protein Name': {'dtype':str, 'long':True, 'short_row': True, 'short_col':True},
+                'Protein Concentration': {'dtype':float, 'long':True, 'short_row': True, 'short_col':True},
+                'Tracer Name': {'dtype':str, 'long':True, 'short_row': True, 'short_col':True},
+                'Tracer Concentration': {'dtype':float, 'long':True, 'short_row': True, 'short_col':True},
+                'Competitor Name': {'dtype':str, 'long':True, 'short_row': True, 'short_col':True},
+                'Competitor Concentration': {'dtype':float, 'long':True, 'short_row': True, 'short_col':True},
+                'Concentration Units':{'dtype':str, 'long':True, 'short_row': True, 'short_col':True},
+               }
 
 # we need to reference well plate dimensions  
 wells = {6:(2, 3), 12:(3, 4), 24:(4, 6), 48:(6, 8), 96:(8, 12), 384:(16, 24)} # dictionary of well sizes  
 
-# specifying column types for the eventual dataframes prevents some problems when handling them 
-data_types = {'Well ID' : str, 'Compound' : str, 'Protein': str, 'Concentration' : float, 'Concentration Units' : str,
-             'Contents' : str, 'Type' : str, 'Valid' : bool}
 
-# generate empty maps of defined size that can be updated with the contents of plate map templates
-def empty_map(size = 96, valid = True):
-    """Returns an empty platemap of defined size.
+def empty_map(size=96, valid=True):
+    """Generates an empty platemap of defined size that is used as the template when generating the filled plate maps from csv file. 
     
-    Contains the columns 'Well ID', 'Compound', 'Protein', 'Concentration', 'Concentration Units', 'Contents', 'Type' and 'Valid'. Empty map is used as the template when generated filled plate maps from csv files. 
-    
-    :param size: Size of well plate - 6, 12, 24, 48, 96 or 384, default = 96 
-    :param type: int
+    :param size: Size of well plate, default = 96 
+    :type size: int
     :param valid: Validates every well - 'True' sets every well as valid, 'False' wells will not be used for analysis, default = True
     :type valid: bool
     :return: Pandas Dataframe of an empty plate map
+    :rtype: pandas df
     """
+    headers = [x for x in header_names.keys() if header_names[x]['long']]   # create list of headers
     
-    # import alphabet for row labels
-    letters = list(string.ascii_uppercase)
-    # define rows (note wells defined earlier)
-    rows = letters[0:(wells[size])[0]]
-    # list of cell letters
-    cellstemp1 = rows*(wells[size])[1]
-    # sorting EITHER rows or columns lists the well ID's in the correct order
-    cellstemp1.sort()
+    row_letters = list(string.ascii_uppercase)[0: wells[size][0]]   # create a list of row letters for a given size
+    col_numbers = list(np.arange(1, wells[size][1] + 1).astype(str))   # create a list of column numbers for a given size
+    well_ids = ['%s%s' % (item[0], item[1]) for item in product(row_letters, col_numbers)]   # create a list of well ids from row letters and column numbers
     
-    # define the correct number of columns according to the well plate
-    columns = list(range(1, (wells[size])[1]+1))
-    # list of cell numbers for every well
-    cellstemp2 = columns*(wells[size])[0]
-    # dictionary of cell letters (rows) and numbers (columns)
-    cellsdict = {'Row':cellstemp1, 'Column':cellstemp2}
+    empty_df = pd.DataFrame(index=well_ids, columns=headers)   # create the platemap data frame
+    empty_df['Valid'] = valid   # set 'Valid' as True to every well
     
-    # new empty dataframe to append with wells
-    df = pd.DataFrame(cellsdict)
-    df["Well ID"] = df["Row"] + df["Column"].astype(str)
+    if 'Type' in empty_df.columns:   # set the deafult value of 'Type' column as 'empty'
+        empty_df['Type'] = 'empty'
     
-    headers = ("Well ID", "Type", "Contents", "Compound", "Protein", 
-               "Concentration", "Concentration Units","Row", "Column", "Valid")    
-    df = df.reindex(headers, axis = "columns")
-    
-    # valid column allows easy ommision of anomalous data
-    df['Valid'] = df['Valid'].fillna(valid)
-    
-    # type column provides a quick identification of what is in each well
-    df['Type'] = df['Type'].fillna('empty')
-    
-    # seting index to Well ID provides a uniform index for all dataframes generated from a particular well plate
-    df.set_index(df['Well ID'], inplace = True)
-    
-    return df
+    empty_df.drop(labels='Well ID', axis=1, inplace=True)   # remove the redundant 'Well ID' column created from the header_names dict
+    eturn empty_df
 
 # PLATE DF GENERATION FROM LONG HAND MAP
-def plate_map(file, size = 96, valid = True):
+def plate_map(file, size=96, valid=True):
     """Returns a dataframe from a 'long' plate map csv file that defines each and every well from a well plate of defined size
     
     Each defined well in the csv file corresponds to a row of the dataframe. The index is set to the Well ID's of the well plate, e.g. "A1". Dataframe contains headers such as 'Well ID', 'Compound', 'Protein', 'Concentration', 'Concentration Units', 'Contents', 'Type' and 'Valid'. The csv file contains headers on line 2 and a well ID in the first column for every well in the plate.
@@ -84,30 +67,32 @@ def plate_map(file, size = 96, valid = True):
     :type valid: bool
     :return: Pandas Dataframe of a defined plate map
     """
-    try:
-        # substitute values w/ new plate map
-        df = pd.read_csv(file, skiprows = 1, dtype = data_types, skipinitialspace = True)
-        if list(df.columns) != header_names_long:
-            raise HeaderError("Wrong headers!")
+     try:   # substitute values w/ new plate map
+        data_types = {i[0]: i[1]['dtype'] for i in header_names.items()}   # dictionary with data types
+        
+        df = pd.read_csv(file, skiprows = 1, dtype = data_types, skipinitialspace = True)   # create the platemap df from csv file
+        headers = [x for x in header_names.keys() if header_names[x]['long']]   # list of pre-defined headers from header_names dict
+        
+        if set(list(df.columns)) != set(headers):   # if headers in imported platemap are ddifferent than pre-defined headers, raise error
+            raise HeaderError
 
-        # set index to Well ID
-        df = df.set_index(df['Well ID'])
+        df = df.set_index(df['Well ID'])   # set index to Well ID
 
-            # check there are no repeats
+        # check there are no repeats
         if len(df.index.unique()) != len(df.index):
             raise PlateMapError("Check your plate map!")
 
         # correct typos due to capitalisation and trailing spaces
-        df['Type'] = df['Type'].str.lower()
-        df[['Contents', 'Compound', 'Protein', 'Type']] = df[['Contents', 'Compound', 'Protein', 'Type']].stack().str.rstrip().unstack()
+        if 'Type' in df.columns:    
+            df['Type'] = df['Type'].str.lower()
+        
+        # correct typos due to trailing spaces
+        str_cols = [x for x in header_names.keys() if header_names[x]['dtype'] == str]
+        df[str_cols] = df[str_cols].stack(dropna=False).str.rstrip().unstack()
 
-        # define empty plate map
-        temp = empty_map(size = size, valid = valid)
+        temp = empty_map(size=size, valid=valid)   # define an empty plate map
+        temp.update(df)   # insert imported plate map into the empty plate map
 
-        # insert plate map into empty map
-        temp.update(df)
-
-        temp.drop(['Well ID'], axis=1)
         return temp
     
     except HeaderError: 
@@ -178,7 +163,7 @@ def short_map(file, size = 96, valid = True):
 hatchdict = {"True":("", 'black'), "False":("//////", 'red')}
 
 # fontsize will scale font size of visualisaiton to the well plate size (avoids overlapping text)
-def fontsize(sizeby, plate_size): 
+def fontsize(sizeby, plate_size, str_len=None): 
     """Returns a font size defined by the length of the string and size of the well plate
     
     Larger well plate and/or longer string = smaller font size.
@@ -188,13 +173,18 @@ def fontsize(sizeby, plate_size):
     :param plate_size: Scalable integer, the size of the well plate
     :var plate_size: Larger value corresponds with smaller fontsize, size of well plate is used in the following instances of the function
     :type plate_size: int
+    :param str_len: Length of the string to be displayed on the platemap, passed only if the formatting is scientific notation, otherwise None
+    :type str_len: int or None
     :return: float corresponding to a scaled font size 
     :rtype: float
     """
-    return (8 - math.log10(len(str(sizeby)))*2 - math.log10(plate_size)*1.5)
-
+    if str_len == None:   # previous functionality
+        return (8 - math.log10(len(str(sizeby)))*2 - math.log10(plate_size)*1.5)
+    else:   # if value is to be displayed in scientific notation, use str_len to determine its fontsize instead of determinig its legth
+        return (8 - math.log10(str_len)*2 - math.log10(plate_size)*1.5)   
+    
 # adds labels according to label stipulations (avoids excessive if statements in the visualise function)
-def labelwell(platemap, labelby, iterrange):
+def labelwell(platemap, labelby, iterrange, scinot=False):
     """Returns label for each row of a stipulated column.
     
     Used to return the appropriate, formatted label from a specified platemap at every well. Empty wells will always return 'empty', wells without a label will return a blank string.  
@@ -205,13 +195,16 @@ def labelwell(platemap, labelby, iterrange):
     :type labelby: str
     :param iterrange: Number of instances to itterate over, typically the size of the platemap
     :type iterrange: int
+    :param scinot: Dermines whether the value is to be displayed in scientific notation, defaults to False
+    :type scinot: bool
+    :return: string corresponding to the value located in column labelby and row iterrange of the platemap
+    :rtype: str
     """
-    if platemap['Type'].iloc[iterrange] == 'empty':
-        return "empty"
-    elif str(platemap[labelby].iloc[iterrange]) != 'nan':
+    if scinot == True:   # if scinot parameter is true, format the value in scientific notation 
+        return "%.2E" % (platemap[labelby].iloc[iterrange])
+    else:   # get the value from 'labelby' column and 'iterrange' row
         return str(platemap[labelby].iloc[iterrange]).replace(" ", "\n")
-    else:
-        return " "
+
     
 def wellcolour(platemap, colorby, cmap, iterrange):
     """Returns a unique colour for each label or defined condition.
@@ -238,8 +231,7 @@ def wellcolour(platemap, colorby, cmap, iterrange):
     color = colordict.get(str(platemap[colorby].iloc[iterrange]))
     return color
 
-def visualise(platemap, title = "", size = 96, export = False, cmap = 'Paired',
-             colorby = 'Type', labelby = 'Type', dpi = 150):
+def visualise(platemap, title="", size=96, export=False, cmap='Paired', colorby='Type', labelby='Type', dpi=150, scinot=False, str_len=None):
     """Returns a visual representation of the plate map.
     
     The label and colour for each well can be customised to be a variable, for example 'Compound', 'Protein', 'Concentration', 'Concentration Units', 'Contents' or 'Type'. The size of the plate map used to generate the figure can be either 6, 12, 24, 48, 96 or 384. 
@@ -259,7 +251,11 @@ def visualise(platemap, title = "", size = 96, export = False, cmap = 'Paired',
     :param labelby: Chooses the parameter to label code by, for example 'Type', 'Contents', 'Concentration', 'Compound', 'Protein', 'Concentration Units', default = 'Type'
     :type labelby: str
     :param dpi: Size of the figure, default = 150
-    :type dpi: int
+    :type dpi: int 
+    :param scinot: Dermines whether the value is to be displayed in scientific notation, defaults to False
+    :type scinot: bool
+    :param str_len: Length of the string to be displayed on the platemap, passed only if the 'scinot' is True, default None
+    :type str_len: int or None
     :return: Visual representation of the plate map.
     :rtype: figure
     """
@@ -267,7 +263,7 @@ def visualise(platemap, title = "", size = 96, export = False, cmap = 'Paired',
         fig = plt.figure(dpi = dpi)
         # define well plate grid according to size of well plate 
         # an extra row and column is added to the grid to house axes labels
-        grid = gridspec.GridSpec((wells[size])[0]+1, (wells[size])[1]+1, wspace=0.1, hspace=0.1, figure = fig)
+        grid = gridspec.GridSpec((wells[size])[0]+1, (wells[size])[1]+1, wspace=0.1, hspace=0.1, figure=fig)
 
         # plot row labels in extra row
         for i in range(1, (wells[size])[0]+1):
@@ -275,7 +271,7 @@ def visualise(platemap, title = "", size = 96, export = False, cmap = 'Paired',
             ax.axis('off')
             ax.set_xticklabels([])
             ax.set_yticklabels([])
-            ax.text(0.5, 0.5, list(string.ascii_uppercase)[i-1], size = 10, ha = "center", va="center")
+            ax.text(0.5, 0.5, list(string.ascii_uppercase)[i-1], size=8, ha="center", va="center")
 
         # plot column labels in extra column
         for i in range(1, (wells[size])[1]+1):
@@ -283,39 +279,39 @@ def visualise(platemap, title = "", size = 96, export = False, cmap = 'Paired',
             ax.axis('off')
             ax.set_xticklabels([])
             ax.set_yticklabels([])
-            ax.text(0.5, 0.5, list(range(1, (wells[size])[1]+1))[i-1], size = 8, ha = "center", va="center")
-
+            ax.text(0.5, 0.5, list(range(1, (wells[size])[1]+1))[i-1], size=8, ha="center", va="center")
+        
+        indexes = list(platemap.index)  # list of well ids
+        # create a list of tuples, each one containing a row number corresponding to a specified row letter  and col number for all well ids so that there is no need to iterate over the 'Row' and 'Column' columns which are absent in flu_ani platemaps
+        coords = [(ord(item[0].lower()) - 96, int(item[1:])) for item in indexes]
+                
         # plot plate types in grid, color code and label
-        for i in range(size):
-                # color code
-                ax = plt.subplot(grid[(ord(platemap['Row'].iloc[i].lower())-96), ((platemap['Column'].iloc[i]))])
-                ax.axis('off')
-                ax.set_xticklabels([])
-                ax.set_yticklabels([])
+        for i, coord in enumerate(coords):   # iterate over each tuple (effectively well id) in coords 
+            ax = plt.subplot(grid[coord[0], coord[1]])
+            ax.axis('off')
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            
+            # Well colour coding  
+            if platemap['Type'].iloc[i] == 'empty':
+                ax.add_artist(plt.Circle((0.5, 0.5), 0.49, edgecolor='black', fill=False, lw=0.5))
+                # LABELS #
+                # add 'empty' label
+                ax.text(0.5, 0.5, 'empty', size=str(fontsize(sizeby='empty', plate_size=size, str_len=str_len)), wrap=True, ha="center", va="center")
 
-                # Well colour coding  
-                if platemap['Type'].iloc[i] == 'empty':
-                    ax.add_artist(plt.Circle((0.5, 0.5), 0.49, edgecolor='black', fill = False, lw=0.5))
-                    # LABELS #
-                    # add 'empty' label
-                    ax.text(0.5, 0.5, 'empty', size = str(fontsize(sizeby = 'empty', plate_size = size)), wrap = True, ha = "center", va="center")
+            else:
+                ax.add_artist(plt.Circle((0.5, 0.5), 0.49, facecolor=wellcolour(platemap, colorby, cmap, i), edgecolor=hatchdict[str(platemap['Valid'].iloc[i])][1], lw=0.5, hatch = hatchdict[str(platemap['Valid'].iloc[i])][0]))
 
-                else:
-                    ax.add_artist(plt.Circle((0.5, 0.5), 0.49, facecolor=wellcolour(platemap, colorby, cmap, i), edgecolor=hatchdict[str(platemap['Valid'].iloc[i])][1], lw=0.5, hatch = hatchdict[str(platemap['Valid'].iloc[i])][0]))
+                # LABELS 
+                # nan option allows a blank label if there is nothing stipulated for this label condition
+                if str(platemap[labelby].iloc[i]) != 'nan':
+                    ax.text(0.5, 0.5, labelwell(platemap, labelby, i, scinot), size=str(fontsize(sizeby=platemap[labelby].iloc[i], plate_size=size, str_len=str_len)), wrap=True, ha="center", va="center")
+                    
+        plt.suptitle(f"{title}")   # add the figure title
 
-                    # LABELS 
-                    # nan option allows a blank label if there is nothing stipulated for this label condition
-                    if str(platemap[labelby].iloc[i]) != 'nan':
-                        ax.text(0.5, 0.5, labelwell(platemap, labelby, i), 
-                                size = str(fontsize(sizeby = platemap[labelby].iloc[i], plate_size = size)), 
-                                wrap = True, ha = "center", va="center")
-
-        # add title 
-        plt.suptitle('{}'.format(title))
-
-        # provides option to save well plate figure 
-        if export == True:
-            plt.savefig('{}_map.png'.format(title))
+        if export == True:   # option to save the figure as .png file at matplotlib's default file path
+            plt.savefig(f"{title}_map.png")
+    
     except:
         print('error!')
 
@@ -427,12 +423,12 @@ def wellcolour2(platemap, colorby, cmap, itter, to_plot):
     color = colordict.get(str(platemap[colorby].loc[to_plot[itter]]))
     return color
 
-def invalidate_wells(platemap, wells, valid = False):
+def invalidate_wells(platemap, wells, valid=False):
     """Returns updated plate map with specified wells invalidated.
     
     :param platemap: Plate map to use
     :type platemap: pandas dataframe
-    :param wells: Well or wells to invalidate, e.g. ("A1", "B1", "C1")
+    :param wells: Well or wells to invalidate, e.g. ["A1", "B1", "C1"]
     :type wells: string or list of strings
     :param valid: Sets the stipulated well 'True' or 'False', default = False
     :type valid: bool
@@ -441,43 +437,38 @@ def invalidate_wells(platemap, wells, valid = False):
     """
     platemap.loc[wells, 'Valid'] = valid 
     return platemap
-def invalidate_rows(platemap, rows, valid = False):
+
+def invalidate_rows(platemap, rows, valid=False):
     """Returns updated plate map with specified rows invalidated.
     
     :param platemap: Plate map to use
     :type platemap: pandas dataframe
-    :param wells: Rows to invalidate, e.g. ("A", "B", "C")
-    :type wells: list of strings
+    :param rows: Rows to invalidate, e.g. ("A", "B", "C")   
+    :type rows: string or tuple of strings                             
     :param valid: Sets the stipulated row or rows 'True' or 'False', default = False
     :type valid: bool
     :return: Returns updated plate map
     :rtype: pandas dataframe
-    """
+    """ 
     platemap.loc[platemap.index.str.startswith(rows), 'Valid'] = valid
     return platemap
 
-def invalidate_cols(platemap, cols, valid = False):
+def invalidate_cols(platemap, cols, valid=False):
     """Returns updated plate map with specified columns invalidated.
     
     :param platemap: Plate map to use
     :type platemap: pandas dataframe
-    :param wells: Columns to invalidate, e.g. 1, 2, 3
+    :param wells: Columns to invalidate, e.g. [1, 2, 3]
     :type wells: int or list of ints
     :param valid: Sets the stipulated column or columns 'True' or 'False', default = False
     :type valid: bool
     :return: Returns updated plate map
     :rtype: pandas dataframe
     """
-    # if/else circumvents a slight bug - if cols contains just 1 value python doesn't recognise it as a list
-    if type(cols) != int:
-        cols = list(map(str, cols))
-    else:
-        cols = str(cols)
-    letters = list(string.ascii_uppercase)
-    rows = letters[0:(wells[platemap.shape[0]])[0]]
-    delcols = list(cols)*len(rows)
-    delcols.sort()
-    delrows = rows*len(str(cols))
-    ids = [i+str(j) for i, j in zip(delrows, delcols)]
-    platemap.loc[ids, 'Valid'] = valid
+    if type(cols) == int:   # convert cols to a list because cols must be an iterable object to allow for list comprehension 
+        cols = [cols]
+
+    all_ids = list(platemap.index)   # create a list of all well ids from platemap indexes
+    inval_ids = [item for item in all_ids if int(item[1:]) in cols]   # list of well ids to be invalidated based on the columns from 'cols' parameter
+    platemap.loc[inval_ids, 'Valid'] = valid
     return platemap
