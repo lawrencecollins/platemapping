@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import string, math
+from itertools import product
 
 # custom errors 
 class Error(Exception):
@@ -52,7 +53,7 @@ def empty_map(size=96, valid=True):
         empty_df['Type'] = 'empty'
     
     empty_df.drop(labels='Well ID', axis=1, inplace=True)   # remove the redundant 'Well ID' column created from the header_names dict
-    eturn empty_df
+    return empty_df
 
 # PLATE DF GENERATION FROM LONG HAND MAP
 def plate_map(file, size=96, valid=True):
@@ -67,7 +68,7 @@ def plate_map(file, size=96, valid=True):
     :type valid: bool
     :return: Pandas Dataframe of a defined plate map
     """
-     try:   # substitute values w/ new plate map
+    try:   # substitute values w/ new plate map
         data_types = {i[0]: i[1]['dtype'] for i in header_names.items()}   # dictionary with data types
         
         df = pd.read_csv(file, skiprows = 1, dtype = data_types, skipinitialspace = True)   # create the platemap df from csv file
@@ -96,7 +97,7 @@ def plate_map(file, size=96, valid=True):
         return temp
     
     except HeaderError: 
-        print("Headers in csv file are incorrect.\nUse: {}".format(header_names_long))
+        print("Headers in csv file are incorrect.\nUse: {}".format(headers))
     except PlateMapError:
         print("Check your plate map! Incorrect number of wells.")
 
@@ -115,6 +116,7 @@ def short_map(file, size = 96, valid = True):
     try:
         # read in short map 
         df = pd.read_csv(file, skiprows = 1, skipinitialspace = True)
+        headers = [x for x in header_names.keys() if header_names[x]['short_row']]   # list of suitable headers taken from the header_names dictionary
         if list(df.columns) != header_names_short:
             raise HeaderError("Wrong headers!")
             
@@ -153,7 +155,7 @@ def short_map(file, size = 96, valid = True):
         return finalmap
     
     except HeaderError:
-        print("Headers in csv file are incorrect.\nUse: {}".format(header_names_short))
+        print("Headers in csv file are incorrect.\nUse: {}".format(headers))
     except PlateMapError:
         print("Check your plate map! Incorrect number of wells.")
         
