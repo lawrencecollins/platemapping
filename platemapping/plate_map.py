@@ -74,7 +74,7 @@ def plate_map(file, size=96, valid=True):
         df = pd.read_csv(file, skiprows = 1, dtype = data_types, skipinitialspace = True)   # create the platemap df from csv file
         headers = [x for x in header_names.keys() if header_names[x]['long']]   # list of pre-defined headers from header_names dict
         
-        if set(list(df.columns)) != set(headers):   # if headers in imported platemap are ddifferent than pre-defined headers, raise error
+        if set(list(df.columns)) != set(headers):   # if headers in imported platemap are different than pre-defined headers, raise error
             raise HeaderError
 
         df = df.set_index(df['Well ID'])   # set index to Well ID
@@ -117,7 +117,8 @@ def short_map(file, size = 96, valid = True):
         # read in short map 
         df = pd.read_csv(file, skiprows = 1, skipinitialspace = True)
         headers = [x for x in header_names.keys() if header_names[x]['short_row']]   # list of suitable headers taken from the header_names dictionary
-        if list(df.columns) != header_names_short:
+        
+        if set(list(df.columns)) != set(headers):
             raise HeaderError("Wrong headers!")
             
         # generate empty dataframe to append with each duplicated row
