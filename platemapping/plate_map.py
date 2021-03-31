@@ -32,17 +32,19 @@ header_names = {'Well ID': {'dtype':str, 'long':True, 'short_row': False, 'short
 wells = {6:(2, 3), 12:(3, 4), 24:(4, 6), 48:(6, 8), 96:(8, 12), 384:(16, 24)} # dictionary of well sizes  
 
 
-def empty_map(size=96, valid=True):
+def empty_map(size=96, valid=True, header_type='long'):
     """Generates an empty platemap of defined size that is used as the template when generating the filled plate maps from csv file. 
     
     :param size: Size of well plate, default = 96 
     :type size: int
     :param valid: Validates every well - 'True' sets every well as valid, 'False' wells will not be used for analysis, default = True
     :type valid: bool
+    :param header_type: Type of headers used to create the df (e.g. 'long', 'short_row'), must be the same as in header_names dictionary, defaults to 'long'
+    :type header_type: str
     :return: Pandas Dataframe of an empty plate map
     :rtype: pandas df
     """
-    headers = [x for x in header_names.keys() if header_names[x]['long']]   # create list of headers
+    headers = [x for x in header_names.keys() if header_names[x][header_type]]   # create list of headers
     
     row_letters = list(string.ascii_uppercase)[0: wells[size][0]]   # create a list of row letters for a given size
     col_numbers = list(np.arange(1, wells[size][1] + 1).astype(str))   # create a list of column numbers for a given size
@@ -65,7 +67,7 @@ def plate_map(file, size=96, valid=True):
     An example csv template can be found here: 'long map example.csv'
     
     :param size: Size of well plate - 6, 12, 24, 48, 96 or 384, default = 96 
-    :param type: int
+    :type size: int
     :param valid: Validates every well - 'True' sets every well as valid, 'False' wells will not be used for analysis, default = True
     :type valid: bool
     :return: Pandas Dataframe of a defined plate map
@@ -77,7 +79,7 @@ def plate_map(file, size=96, valid=True):
         headers = [x for x in header_names.keys() if header_names[x]['long']]   # list of pre-defined headers from header_names dict
         
         if set(list(df.columns)) != set(headers):   # if headers in imported platemap are different than pre-defined headers, raise error
-            raise HeaderError
+            raise HeaderError("Wrong headers!")
 
         df = df.set_index(df['Well ID'])   # set index to Well ID
 
@@ -93,7 +95,7 @@ def plate_map(file, size=96, valid=True):
         str_cols = [x for x in header_names.keys() if header_names[x]['dtype'] == str]
         df[str_cols] = df[str_cols].stack(dropna=False).str.rstrip().unstack()
 
-        temp = empty_map(size=size, valid=valid)   # define an empty plate map
+        temp = empty_map(size=size, valid=valid, header_type='long')   # define an empty plate map
         temp.update(df)   # insert imported plate map into the empty plate map
 
         return temp
@@ -104,23 +106,23 @@ def plate_map(file, size=96, valid=True):
         print("Check your plate map! Incorrect number of wells.")
 
 # PLATE DF GENERATION FROM SHORT HAND MAP
-def short_map(file, size = 96, valid = True):
+def short_map(file, size=96, valid=True):
     """Returns a dataframe from a 'short' plate map csv file that defines each and every well from a well plate of defined size
     
     Contains the columns 'Well ID', 'Compound', 'Protein', 'Concentration', 'Concentration Units', 'Contents', 'Type' and 'Valid'. Each defined well in the csv file corresponds to a row of the dataframe. The index is set to the Well ID's of the well plate, e.g. "A1". 
     
     :param size: Size of well plate - 6, 12, 24, 48, 96 or 384, default = 96 
-    :param type: int
+    :type size: int
     :param valid: Validates every well - 'True' sets every well as valid, 'False' wells will not be used for analysis, default = True
     :type valid: bool
     :return: Pandas Dataframe of a defined plate map
     """
     try:
         # read in short map 
-        df = pd.read_csv(file, skiprows = 1, skipinitialspace = True)
+        df = pd.read_csv(file, skiprows = 1, skipinitialspace = True)   
         headers = [x for x in header_names.keys() if header_names[x]['short_row']]   # list of suitable headers taken from the header_names dictionary
         
-        if set(list(df.columns)) != set(headers):
+        if set(list(df.columns)) != set(headers):   # if headers in imported platemap are different than pre-defined headers, raise error
             raise HeaderError("Wrong headers!")
             
         # generate empty dataframe to append with each duplicated row
@@ -147,7 +149,7 @@ def short_map(file, size = 96, valid = True):
                 raise PlateMapError("Check your plate map! Incorrect number of wells.")
 
         # insert filled df into empty plate map to include empty rows 
-        finalmap = empty_map(size = size, valid = valid)
+        finalmap = empty_map(size=size, valid=valid, header_type='short_row')
         finalmap.update(filleddf)
         # update data types to prevent future problems
         finalmap['Column'] = finalmap['Column'].astype(int)
@@ -233,15 +235,15 @@ def get_colour_dict(platemap, colorby, cmap, **kwargs):
     :rtype: dict
     """
     cmap = plt.get_cmap(cmap)   # get the colourmap object
-    if kwargs['categorical'] == False:   # non-categorical data
+    if 'categorical' in kwargs and kwargs['categorical'] == False:   # non-categorical data
         
-        if kwargs['blank_yellow'] == True:   # blank wells are coloured yellow
+        if 'blank_yellow' in kwargs and kwargs['blank_yellow'] == True:   # blank wells are coloured yellow
             vals = platemap[platemap['Type'] != 'blank'][colorby].dropna().to_numpy()   # create numpy array of the 'colorby' values except of blanks
         else:   # include blanks in the vals array so that colours are also generated for them
             vals = platemap[colorby].dropna().to_numpy()
         
         types = vals.astype(str)   # convert the data values to strings that will be keys of colourdict
-        if kwargs['scale'] == 'log':   
+        if 'scale' in kwargs and kwargs['scale'] == 'log':   
             if np.any(vals<=0):   # return warning if the scaling is logarithmic but data contains non-positive values
                 warnings.warn('The logarithmic scale could not be used becasue the data contains values less than or equal to 0. The default linear scale was used instead.', RuntimeWarning)
             else:
@@ -278,7 +280,7 @@ def wellcolour(colordict, platemap, colorby, iterrange, **kwargs):
 
     if 'to_plot' in kwargs:   
         color = colordict.get(str(platemap[colorby].loc[to_plot[iterrange]]))
-    if kwargs['blank_yellow'] == True and platemap['Type'].iloc[iterrange] == 'blank':
+    if 'blank_yellow' in kwargs and kwargs['blank_yellow'] == True and platemap['Type'].iloc[iterrange] == 'blank':
         color = 'yellow'   # define colour as yellow, if colourdict contains colurs for blank wells, it will be overwritten
     
     return color
