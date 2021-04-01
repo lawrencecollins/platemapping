@@ -170,7 +170,7 @@ def short_map(file, size=96, valid=True):
 hatchdict = {"True":("", 'black'), "False":("//////", 'red')}
 
 # fontsize will scale font size of visualisaiton to the well plate size (avoids overlapping text)
-def fontsize(sizeby, plate_size, str_len=None): 
+def fontsize(sizeby, plate_size, **kwargs): 
     """Returns a font size defined by the length of the string and size of the well plate
     
     Larger well plate and/or longer string = smaller font size.
@@ -180,18 +180,17 @@ def fontsize(sizeby, plate_size, str_len=None):
     :param plate_size: Scalable integer, the size of the well plate
     :var plate_size: Larger value corresponds with smaller fontsize, size of well plate is used in the following instances of the function
     :type plate_size: int
-    :param str_len: Length of the string to be displayed on the platemap, passed only if the formatting is scientific notation, otherwise None
-    :type str_len: int or None
+    :param **kwargs: The str_len (int) is accepted as a keyword argument, it is the length of the string to be displayed on the platemap, used only if the formatting is scientific notation or percentage.
     :return: float corresponding to a scaled font size 
     :rtype: float
     """
-    if str_len == None:   # previous functionality
+    if 'str_len' in kwargs and kwargs['str_len'] != None:    # if value is to be displayed in scientific notation or percentage, use str_len to determine its fontsize instead of determinig its legth
+        return (8 - math.log10(kwargs['str_len'])*2 - math.log10(plate_size)*1.5) 
+    else:     # previous functionality
         return (8 - math.log10(len(str(sizeby)))*2 - math.log10(plate_size)*1.5)
-    else:   # if value is to be displayed in scientific notation, use str_len to determine its fontsize instead of determinig its legth
-        return (8 - math.log10(str_len)*2 - math.log10(plate_size)*1.5)   
-    
+
 # adds labels according to label stipulations (avoids excessive if statements in the visualise function)
-def labelwell(platemap, labelby, iterrange, str_format=None):
+def labelwell(platemap, labelby, iterrange, **kwargs):
     """Returns label for each row of a stipulated column.
     
     Used to return the appropriate, formatted label from a specified platemap at every well. Empty wells will always return 'empty', wells without a label will return a blank string.  
@@ -202,14 +201,13 @@ def labelwell(platemap, labelby, iterrange, str_format=None):
     :type labelby: str
     :param iterrange: Number of instances to itterate over, typically the size of the platemap
     :type iterrange: int
-    :param scinot: Dermines whether the value is to be displayed in scientific notation, defaults to False
-    :type scinot: bool
+    :param **kwargs: The str_format (str) is accepted as a keyword argument, it determines whether the value is to be displayed in scientific notation or percentage 1 d.p.
     :return: string corresponding to the value located in column labelby and row iterrange of the platemap
     :rtype: str
     """
-    if str_format == 'scinot':   # if scinot parameter is true, format the value in scientific notation 
+    if 'str_format' in kwargs and kwargs['str_format'] == 'scinot':   # if scinot parameter is true, format the value in scientific notation 
         return "%.2E" % (platemap[labelby].iloc[iterrange])
-    elif str_format == 'percent':
+    elif 'str_format' in kwargs and kwargs['str_format'] == 'percent':
         return "%.1f" % (platemap[labelby].iloc[iterrange])
     else:   # get the value from 'labelby' column and 'iterrange' row
         return str(platemap[labelby].iloc[iterrange]).replace(" ", "\n")
@@ -285,7 +283,7 @@ def wellcolour(colordict, platemap, colorby, iterrange, **kwargs):
     
     return color
 
-def visualise(platemap, title="", size=96, export=False, cmap='Paired', colorby='Type', labelby='Type', dpi=150, str_format=None, str_len=None, **kwargs):
+def visualise(platemap, title="", size=96, export=False, cmap='Paired', colorby='Type', labelby='Type', dpi=150, **kwargs):
     """Returns a visual representation of the plate map.
     
     The label and colour for each well can be customised to be a variable, for example 'Compound', 'Protein', 'Concentration', 'Concentration Units', 'Contents' or 'Type'. The size of the plate map used to generate the figure can be either 6, 12, 24, 48, 96 or 384. 
@@ -306,11 +304,7 @@ def visualise(platemap, title="", size=96, export=False, cmap='Paired', colorby=
     :type labelby: str
     :param dpi: Size of the figure, default = 150
     :type dpi: int 
-    :param scinot: Dermines whether the value is to be displayed in scientific notation, defaults to False
-    :type scinot: bool
-    :param str_len: Length of the string to be displayed on the platemap, passed only if the 'scinot' is True, default None
-    :type str_len: int or None
-    :param **kwargs: Keyword arguments passed to the 'wellcolour' and 'get_colour_dict' functions: categorical, blank_yellow and scale
+    :param **kwargs: Keyword arguments passed to the 'wellcolour' and 'get_colour_dict' functions: str_len, str_format, categorical, blank_yellow and scale
     :return: Visual representation of the plate map.
     :rtype: figure
     """
@@ -353,7 +347,7 @@ def visualise(platemap, title="", size=96, export=False, cmap='Paired', colorby=
                 ax.add_artist(plt.Circle((0.5, 0.5), 0.49, edgecolor='black', fill=False, lw=0.5))
                 # LABELS #
                 # add 'empty' label
-                ax.text(0.5, 0.5, 'empty', size=str(fontsize(sizeby='empty', plate_size=size, str_len=str_len)), wrap=True, ha="center", va="center")
+                ax.text(0.5, 0.5, 'empty', size=str(fontsize(sizeby='empty', plate_size=size, **kwargs)), wrap=True, ha="center", va="center")
 
             else:
                 ax.add_artist(plt.Circle((0.5, 0.5), 0.49, facecolor=wellcolour(colordict, platemap, colorby, i, **kwargs), edgecolor=hatchdict[str(platemap['Valid'].iloc[i])][1], lw=0.5, hatch = hatchdict[str(platemap['Valid'].iloc[i])][0]))
@@ -361,7 +355,7 @@ def visualise(platemap, title="", size=96, export=False, cmap='Paired', colorby=
                 # LABELS 
                 # nan option allows a blank label if there is nothing stipulated for this label condition
                 if str(platemap[labelby].iloc[i]) != 'nan':
-                    ax.text(0.5, 0.5, labelwell(platemap, labelby, i, str_format), size=str(fontsize(sizeby=platemap[labelby].iloc[i], plate_size=size, str_len=str_len)), wrap=True, ha="center", va="center")
+                    ax.text(0.5, 0.5, labelwell(platemap, labelby, i, **kwargs), size=str(fontsize(sizeby=platemap[labelby].iloc[i], plate_size=size, **kwargs)), wrap=True, ha="center", va="center")
                     
         plt.suptitle(f"{title}")   # add the figure title
 
@@ -422,20 +416,24 @@ def visualise_all_series(x, y, platemap, share_y, size = 96, title = " ", export
         ax = plt.subplot(grid[0, i])
         ax.axis('off')
         ax.text(0.5, 0.5, list(range(1, (wells[size])[1]+1))[i-1], size = 8, ha = "center", va="center")
-        
+    
+    indexes = list(platemap.index)  # list of well ids
+    # create a list of tuples, each one containing a row number corresponding to a specified row letter  and col number for all well ids so that there is no need to iterate over the 'Row' and 'Column' columns which are absent in flu_ani platemaps
+    coords = [(ord(item[0].lower()) - 96, int(item[1:])) for item in indexes]
+
     # plot plate types in grid, color code and label
-    for i in range(size):
+    for i, coord in enumerate(coords):   # iterate over each tuple (effectively well id) in coords 
         # color code
-        ax = plt.subplot(grid[(ord(platemap['Row'].iloc[i].lower())-96), ((platemap['Column'].iloc[i]))])
+        ax = plt.subplot(grid[coord[0], coord[1]])
         ax.axis('off')
         # set axes
         if share_y == True:
             plt.ylim([ymin, ymax])
-        ax.plot(x.iloc[i], y.iloc[i], lw = 0.5, color = wellcolour(colordict, platemap, colorby, i), 
-                label = labelwell(platemap, labelby, i))
+        
+        ax.plot(x.iloc[i], y.iloc[i], lw=0.5, color=wellcolour(colordict, platemap, colorby, i), label=labelwell(platemap, labelby, i))
         
         if platemap['Valid'].iloc[i] == False:
-            ax.plot([x.iloc[i, 0], x.iloc[i, -1]], [y.iloc[i, 0]-(y.iloc[i, 0]*0.2), y.iloc[i, -1]+(y.iloc[i, -1]*0.05)], color = 'red')
+            ax.plot([x.iloc[i, 0], x.iloc[i, -1]], [y.iloc[i, 0]-(y.iloc[i, 0]*0.2), y.iloc[i, -1]+(y.iloc[i, -1]*0.05)], color='red')
         
                 
         # add label for each well
