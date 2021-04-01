@@ -56,7 +56,7 @@ def empty_map(size=96, valid=True, header_type='long'):
     if 'Type' in empty_df.columns:   # set the deafult value of 'Type' column as 'empty'
         empty_df['Type'] = 'empty'
     
-    empty_df.drop(labels='Well ID', axis=1, inplace=True)   # remove the redundant 'Well ID' column created from the header_names dict
+    # empty_df.drop(labels='Well ID', axis=1, inplace=True)   # remove the redundant 'Well ID' column created from the header_names dict
     return empty_df
 
 # PLATE DF GENERATION FROM LONG HAND MAP
@@ -151,12 +151,13 @@ def short_map(file, size=96, valid=True):
         # insert filled df into empty plate map to include empty rows 
         finalmap = empty_map(size=size, valid=valid, header_type='short_row')
         finalmap.update(filleddf)
-        # update data types to prevent future problems
-        finalmap['Column'] = finalmap['Column'].astype(int)
+        # # update data types to prevent future problems
+        # finalmap['Column'] = finalmap['Column'].astype(int)
         # correct typos due to capitalisation and trailing spaces
         finalmap['Type'] = finalmap['Type'].str.lower()
-        finalmap[['Contents', 'Compound', 'Protein', 'Type']] = finalmap[['Contents', 'Compound', 'Protein', 'Type']].stack().str.rstrip().unstack()
-
+        str_cols = [x for x in header_names.keys() if (header_names[x]['dtype'] == str) and 
+                    (header_names[x]['short_row'])]
+        finalmap[str_cols] = finalmap[str_cols].stack(dropna=False).str.rstrip().unstack()
         return finalmap
     
     except HeaderError:
